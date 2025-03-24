@@ -25,7 +25,7 @@ func TestMutex(t *testing.T) {
 	for range n {
 		g.Go(func() error {
 			<-start
-			return mu.Use(ctx, func(i int) (int, error) {
+			return mu.Replace(ctx, func(i int) (int, error) {
 				return i + 1, nil
 			})
 		})
@@ -35,12 +35,30 @@ func TestMutex(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if got, want := mu.Close(), begin+n; got != want {
-		t.Errorf("got %d; want %d", got, want)
-	}
-	if err := mu.Use(ctx, nil); !errors.Is(err, ErrMutexClosed) {
-		t.Errorf("got %v; want %v", err, ErrMutexClosed)
-	}
+	want := begin + n
+	t.Run("Use", func(t *testing.T) {
+		err := mu.Use(ctx, func(got int) error {
+			if got != want {
+				t.Errorf("got %d; want %d", got, want)
+			}
+			return nil
+		})
+		if err != nil {
+			t.Error(err)
+		}
+	})
+
+	t.Run("Close", func(t *testing.T) {
+		if got := mu.Close(); got != want {
+			t.Errorf("got %d; want %d", got, want)
+		}
+		if err := mu.Use(ctx, nil); !errors.Is(err, ErrMutexClosed) {
+			t.Errorf("got %v; want %v", err, ErrMutexClosed)
+		}
+		if err := mu.Replace(ctx, nil); !errors.Is(err, ErrMutexClosed) {
+			t.Errorf("got %v; want %v", err, ErrMutexClosed)
+		}
+	})
 }
 
 func TestFromMutex(t *testing.T) {
@@ -66,7 +84,7 @@ func TestMutexContextAwareness(t *testing.T) {
 	quit := make(chan struct{})
 	done := make(chan error)
 	go func() {
-		done <- mu.Use(context.Background(), func(int) (int, error) {
+		done <- mu.Replace(context.Background(), func(int) (int, error) {
 			close(ready)
 			<-quit
 			return 0, nil
@@ -77,6 +95,9 @@ func TestMutexContextAwareness(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	if _, err := FromMutex[int, struct{}](ctx, mu, nil); !errors.Is(err, context.Canceled) {
+		t.Error(err)
+	}
+	if err := mu.Replace(ctx, nil); !errors.Is(err, context.Canceled) {
 		t.Error(err)
 	}
 
@@ -109,7 +130,7 @@ func BenchmarkMutex(b *testing.B) {
 
 		b.ResetTimer()
 		for range b.N {
-			mu.Use(ctx, func(i int) (int, error) {
+			mu.Replace(ctx, func(i int) (int, error) {
 				return i + 1, nil
 			})
 		}
