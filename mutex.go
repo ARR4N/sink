@@ -83,7 +83,7 @@ func (mu Mutex[T]) Close() T {
 	return x
 }
 
-// FromMutex is a convenience wrapper around [Mutex.Replace], returning a value
+// FromMutex is a convenience wrapper around [Mutex.Use], returning a value
 // derived from the guarded value, which is unchanged.
 func FromMutex[T any, U any](ctx context.Context, mu Mutex[T], fn ExclusiveAccessValuer[T, U]) (U, error) {
 	var u U

@@ -52,7 +52,8 @@ func TestMonitor(t *testing.T) {
 
 			errSentinel := errors.New("all good")
 
-			err := mon.Wait(ctx,
+			var err error
+			gotFinal, err = FromMonitor(ctx, mon,
 				func(i *int) bool {
 					select {
 					case <-waiting:
@@ -63,9 +64,8 @@ func TestMonitor(t *testing.T) {
 					gotCondChecks = append(gotCondChecks, *i)
 					return *i > threshold
 				},
-				func(i *int) error {
-					gotFinal = *i
-					return errSentinel
+				func(i *int) (int, error) {
+					return *i, errSentinel
 				},
 			)
 			if !errors.Is(err, errSentinel) {

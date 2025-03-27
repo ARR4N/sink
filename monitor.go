@@ -140,3 +140,18 @@ func (m Monitor[T]) Close() T {
 	}
 	return s.v
 }
+
+// FromMonitor is a convenience wrapper around [Monitor.Wait], returning a value
+// derived from the guarded value.
+func FromMonitor[T any, U any](ctx context.Context, mon Monitor[T], cond func(T) bool, fn ExclusiveAccessValuer[T, U]) (U, error) {
+	var u U
+	err := mon.Wait(ctx,
+		cond,
+		func(t T) error {
+			var err error
+			u, err = fn(t)
+			return err
+		},
+	)
+	return u, err
+}
