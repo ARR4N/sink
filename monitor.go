@@ -155,3 +155,19 @@ func FromMonitor[T any, U any](ctx context.Context, mon Monitor[T], cond func(T)
 	)
 	return u, err
 }
+
+// FromMonitors is a convenience wrapper around nested calls to [FromMonitor],
+// returning a value derived from both guarded values. Waiting is performed in
+// the same order as the condition arguments, so `m0` is locked the longest.
+func FromMonitors[T any, U any, V any](
+	ctx context.Context,
+	m0 Monitor[T], m1 Monitor[U],
+	c0 func(T) bool, c1 func(U) bool,
+	fn ExclusiveMultiAccessValuer[T, U, V],
+) (V, error) {
+	return FromMonitor(ctx, m0, c0, func(t T) (V, error) {
+		return FromMonitor(ctx, m1, c1, func(u U) (V, error) {
+			return fn(t, u)
+		})
+	})
+}

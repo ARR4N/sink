@@ -104,3 +104,57 @@ func TestMonitor(t *testing.T) {
 		}
 	})
 }
+
+func TestFromMonitors(t *testing.T) {
+	ctx := context.Background()
+
+	var (
+		i0 int
+		i1 uint
+	)
+	m0 := NewMonitor(&i0)
+	m1 := NewMonitor(&i1)
+
+	const (
+		thresh0 = 10
+		thresh1 = 20
+	)
+
+	done := make(chan struct{})
+
+	var got int
+	go func() {
+		defer close(done)
+		var err error
+		got, err = FromMonitors(
+			ctx, m0, m1,
+			func(i0 *int) bool { return *i0 > thresh0 },
+			func(i1 *uint) bool { return *i1 > thresh1 },
+			func(i0 *int, i1 *uint) (int, error) { return *i0 + int(*i1), nil },
+		)
+		if err != nil {
+			t.Errorf("FromMonitors() error %v", err)
+		}
+	}()
+
+	m0.UseThenSignal(ctx, func(i0 *int) error {
+		*i0 = thresh0 - 1
+		return nil
+	})
+	m1.UseThenSignal(ctx, func(i1 *uint) error {
+		*i1 = thresh1 - 1
+		return nil
+	})
+	m0.UseThenSignal(ctx, func(i0 *int) error {
+		*i0 = thresh0 + 1
+		return nil
+	})
+	m1.UseThenSignal(ctx, func(i1 *uint) error {
+		*i1 = thresh1 + 1
+		return nil
+	})
+	<-done
+	if want := thresh0 + 1 + thresh1 + 1; got != want {
+		t.Errorf("FromMonitors() got %d; want %d", got, want)
+	}
+}

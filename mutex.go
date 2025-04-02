@@ -37,7 +37,8 @@ type (
 	// An ExclusiveAccessValuer function is equivalent to an [ExclusiveAccess]
 	// function except that it returns a value in addition to an error. T and U
 	// MAY be the same type.
-	ExclusiveAccessValuer[T any, U any] func(T) (U, error)
+	ExclusiveAccessValuer[T any, U any]             func(T) (U, error)
+	ExclusiveMultiAccessValuer[T any, U any, V any] func(T, U) (V, error)
 )
 
 // Use calls `fn` with the guarded value. It is the equivalent of locking and
