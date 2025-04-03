@@ -50,13 +50,13 @@ func TestMutex(t *testing.T) {
 
 	t.Run("Close", func(t *testing.T) {
 		if got := mu.Close(); got != want {
-			t.Errorf("got %d; want %d", got, want)
+			t.Errorf("%T.Close() got %d; want %d (final value)", mu, got, want)
 		}
-		if err := mu.Use(ctx, nil); !errors.Is(err, ErrMutexClosed) {
-			t.Errorf("got %v; want %v", err, ErrMutexClosed)
+		if err, ok := mu.Use(ctx, nil).(closedErr[int, Mutex[int]]); !ok {
+			t.Errorf("%T.Use() after Close(); got %v; want %v", mu, err, closedErr[int, Mutex[int]]{})
 		}
-		if err := mu.Replace(ctx, nil); !errors.Is(err, ErrMutexClosed) {
-			t.Errorf("got %v; want %v", err, ErrMutexClosed)
+		if err, ok := mu.Replace(ctx, nil).(closedErr[int, Mutex[int]]); !ok {
+			t.Errorf("%T.Replace() after Close() got %v; want %v", mu, err, closedErr[int, Mutex[int]]{})
 		}
 	})
 }

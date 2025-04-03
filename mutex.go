@@ -2,7 +2,7 @@ package sink
 
 import (
 	"context"
-	"errors"
+	"fmt"
 )
 
 // A Mutex is a mutual exclusion lock that guards a specific value. The zero
@@ -24,10 +24,14 @@ func NewMutex[T any](init T) Mutex[T] {
 	return mu
 }
 
-// ErrMutexClosed is returned by calls to [Mutex.Use], [Mutex.Replace],
+// A closedErr is returned by calls to [Mutex.Use], [Mutex.Replace],
 // [Monitor.UseThenSignal], and [Monitor.Wait] that occur after a call to
 // [Mutex.Close] or [Monitor.Close].
-var ErrMutexClosed = errors.New("mutex closed")
+type closedErr[T any, M interface{ Mutex[T] | Monitor[T] }] struct{}
+
+func (closedErr[T, M]) Error() string {
+	return fmt.Sprintf("%T closed", *(new(M)))
+}
 
 type (
 	// An ExclusiveAccess function receives a guarded value with a guarantee of
@@ -50,7 +54,7 @@ func (mu Mutex[T]) Use(ctx context.Context, fn ExclusiveAccess[T]) error {
 
 	case v, ok := <-mu.ch:
 		if !ok {
-			return ErrMutexClosed
+			return closedErr[T, Mutex[T]]{}
 		}
 		err := fn(v)
 		mu.ch <- v
@@ -67,7 +71,7 @@ func (mu Mutex[T]) Replace(ctx context.Context, fn ExclusiveAccessValuer[T, T]) 
 
 	case v, ok := <-mu.ch:
 		if !ok {
-			return ErrMutexClosed
+			return closedErr[T, Mutex[T]]{}
 		}
 		v, err := fn(v)
 		mu.ch <- v
@@ -76,7 +80,7 @@ func (mu Mutex[T]) Replace(ctx context.Context, fn ExclusiveAccessValuer[T, T]) 
 }
 
 // Close releases the Mutex's resources. Any future calls to [Mutex.Use] or
-// [Mutex.Replace] will return [ErrMutexClosed]. Close returns the guarded
+// [Mutex.Replace] will return [ErrClosed]. Close returns the guarded
 // value.
 func (mu Mutex[T]) Close() T {
 	x := <-mu.ch

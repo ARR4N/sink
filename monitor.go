@@ -47,7 +47,7 @@ func (m Monitor[T]) Wait(ctx context.Context, cond func(T) bool, fn ExclusiveAcc
 
 	case state, ok := <-m.ch:
 		if !ok {
-			return ErrMutexClosed
+			return closedErr[T, Monitor[T]]{}
 		}
 		if cond(state.v) {
 			err := fn(state.v)
@@ -76,7 +76,7 @@ func (m Monitor[T]) Wait(ctx context.Context, cond func(T) bool, fn ExclusiveAcc
 			return ctx.Err()
 		case v, ok := <-ch:
 			if !ok {
-				return ErrMutexClosed
+				return closedErr[T, Monitor[T]]{}
 			}
 			err := fn(v)
 			ch <- v
@@ -96,7 +96,7 @@ func (m Monitor[T]) UseThenSignal(ctx context.Context, fn ExclusiveAccess[T]) er
 
 	case state, ok := <-m.ch:
 		if !ok {
-			return ErrMutexClosed
+			return closedErr[T, Monitor[T]]{}
 		}
 		defer func() { m.ch <- state }()
 
@@ -130,8 +130,8 @@ func (m Monitor[T]) UseThenSignal(ctx context.Context, fn ExclusiveAccess[T]) er
 }
 
 // Close releases the Monitors's resources. Any future calls to
-// [Monitor.UseThenSignal] or [Monitor.Wait] will return [ErrMutexClosed].
-// [ErrMutexClosed]. Close returns the guraded value.
+// [Monitor.UseThenSignal] or [Monitor.Wait] will return [ErrClosed].
+// [ErrClosed]. Close returns the guraded value.
 func (m Monitor[T]) Close() T {
 	s := <-m.ch
 	close(m.ch)
