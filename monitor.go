@@ -23,7 +23,8 @@ type monitorState[T any] struct {
 
 type waiter[T any] struct {
 	cond func(T) bool
-	ch   chan T
+	ch   chan<- T
+	done <-chan struct{}
 }
 
 // NewMonitor creates a new Monitor and sets the initial value to `init`. Call
@@ -55,18 +56,24 @@ func (m Monitor[T]) Wait(ctx context.Context, cond func(T) bool, fn ExclusiveAcc
 			return err
 		}
 
-		// `ch` is effectively a [Mutex] to be shared between us and the
-		// signaller. It has a buffer of 1 in case we stop waiting, in which
-		// case the signaller immediately receives the value back. `ch` will be
-		// closed by either the signaller or [Monitor.Close].
-		ch := make(chan T, 1)
+		// At the end of [Monitor.UseThenSignal], our `cond` will be checked
+		// and, if met, the `T` sent on `ch`. [Monitor.Close] may close `ch`
+		// early. We close `done` to signal either that we're no longer waiting
+		// or that we're finished with the value.
+		ch := make(chan T)
+		done := make(chan struct{})
+		defer close(done)
 		state.waiters = append(state.waiters, &waiter[T]{
 			cond: cond,
 			ch:   ch,
+			done: done,
 		})
 
 		// We now mirror the behaviour of `sync.Cond.Wait()`, which "atomically
-		// unlocks c.L and suspends execution of the calling goroutine".
+		// unlocks c.L and suspends execution of the calling goroutine". The
+		// lack of true atomicity is ok because if the recipient of the returned
+		// `state` signals this waiter it is blocked waiting for either `done`
+		// to close or for us to receive on `ch`.
 		//
 		// unlock
 		m.ch <- state
@@ -78,9 +85,7 @@ func (m Monitor[T]) Wait(ctx context.Context, cond func(T) bool, fn ExclusiveAcc
 			if !ok {
 				return closedErr[T, Monitor[T]]{}
 			}
-			err := fn(v)
-			ch <- v
-			return err
+			return fn(v)
 		}
 	}
 }
@@ -109,16 +114,15 @@ func (m Monitor[T]) UseThenSignal(ctx context.Context, fn ExclusiveAccess[T]) er
 				continue
 			}
 
+			// See the reciprocal treatment of `w.done` and `w.ch` in
+			// [Monitor.Wait].
 			select {
+			case <-w.done:
+			case w.ch <- state.v:
+				<-w.done
 			case <-ctx.Done():
 				return ctx.Err()
-			case w.ch <- state.v:
-				_ = 0 // coverage visual aid
 			}
-			// Either the waiter is finished with the value, or it had stopped
-			// waiting so the value was in the buffer.
-			<-w.ch
-			close(w.ch)
 			state.waiters[i] = nil
 		}
 
