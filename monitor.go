@@ -130,8 +130,8 @@ func (m Monitor[T]) UseThenSignal(ctx context.Context, fn ExclusiveAccess[T]) er
 }
 
 // Close releases the Monitors's resources. Any future calls to
-// [Monitor.UseThenSignal] or [Monitor.Wait] will return [ErrClosed].
-// [ErrClosed]. Close returns the guraded value.
+// [Monitor.UseThenSignal] or [Monitor.Wait] will return an error. Close returns
+// the guarded value.
 func (m Monitor[T]) Close() T {
 	s := <-m.ch
 	close(m.ch)

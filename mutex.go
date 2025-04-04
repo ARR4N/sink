@@ -24,10 +24,9 @@ func NewMutex[T any](init T) Mutex[T] {
 	return mu
 }
 
-// A closedErr is returned by calls to [Mutex.Use], [Mutex.Replace],
-// [Monitor.UseThenSignal], and [Monitor.Wait] that occur after a call to
-// [Mutex.Close] or [Monitor.Close].
-type closedErr[T any, M interface{ Mutex[T] | Monitor[T] }] struct{}
+type closedErr[T any, M interface {
+	Mutex[T] | Monitor[T] | PriorityMutex[T]
+}] struct{}
 
 func (closedErr[T, M]) Error() string {
 	return fmt.Sprintf("%T closed", *(new(M)))
@@ -38,6 +37,11 @@ type (
 	// mutual exclusion. Any error returned by an ExclusiveAccess function is
 	// propagated.
 	ExclusiveAccess[T any] func(T) error
+	// A PreemptibleExclusiveAccess function is equivalent to an
+	// [ExclusiveAccess] function except that it SHOULD yield the guarded value
+	// when receiving on the [Priority] channel if the received value is higher
+	// than its own.
+	PreemptibleExclusiveAccess[T any] func(preempt <-chan Priority, v T) error
 	// An ExclusiveAccessValuer function is equivalent to an [ExclusiveAccess]
 	// function except that it returns a value in addition to an error. T and U
 	// MAY be the same type.
@@ -80,8 +84,7 @@ func (mu Mutex[T]) Replace(ctx context.Context, fn ExclusiveAccessValuer[T, T]) 
 }
 
 // Close releases the Mutex's resources. Any future calls to [Mutex.Use] or
-// [Mutex.Replace] will return [ErrClosed]. Close returns the guarded
-// value.
+// [Mutex.Replace] will return an error. Close returns the guarded value.
 func (mu Mutex[T]) Close() T {
 	x := <-mu.ch
 	close(mu.ch)
