@@ -29,9 +29,11 @@ func NewPriorityMutex[T any](init T) PriorityMutex[T] {
 // time-critical preemption.
 type Priority uint
 
-// Keep the [math] package imported to allow documentation of [Priority] to link
-// to this constant.
-var _ uint = math.MaxUint
+// Idiomatic [Priority] bounds.
+const (
+	MinPriority = Priority(0)
+	MaxPriority = Priority(math.MaxUint)
+)
 
 // Use calls `fn` with the guarded value. It is the equivalent of locking and
 // then unlocking `mu`. The implementation of `fn` SHOULD receive values sent on
@@ -64,4 +66,16 @@ func (mu PriorityMutex[T]) Close() T {
 	x := <-mu.ch
 	close(mu.ch)
 	return x
+}
+
+// FromPriorityMutex is a convenience wrapper around [PriorityMutex.Use],
+// returning a value derived from the guarded value, which is unchanged.
+func FromPriorityMutex[T any, U any](ctx context.Context, mu PriorityMutex[T], priority Priority, fn PreemptibleExclusiveAccessValuer[T, U]) (U, error) {
+	var u U
+	err := mu.Use(ctx, priority, func(preempt <-chan Priority, v T) error {
+		var err error
+		u, err = fn(preempt, v)
+		return err
+	})
+	return u, err
 }

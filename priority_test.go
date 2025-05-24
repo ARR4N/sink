@@ -52,3 +52,19 @@ func TestPriorityMutext(t *testing.T) {
 		}
 	})
 }
+
+func TestFromPriorityMutex(t *testing.T) {
+	ctx := context.Background()
+	const initial = 42
+	mu := NewPriorityMutex(initial)
+
+	got, err := FromPriorityMutex(ctx, mu, MaxPriority, func(_ <-chan Priority, i int) (int, error) {
+		return i + 1, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := initial + 1; got != want {
+		t.Errorf("got %d; want %d", got, want)
+	}
+}

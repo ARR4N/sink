@@ -47,6 +47,7 @@ type (
 	// MAY be the same type.
 	ExclusiveAccessValuer[T any, U any]             func(T) (U, error)
 	ExclusiveMultiAccessValuer[T any, U any, V any] func(T, U) (V, error)
+	PreemptibleExclusiveAccessValuer[T any, U any]  func(preempt <-chan Priority, v T) (U, error)
 )
 
 // Use calls `fn` with the guarded value. It is the equivalent of locking and
