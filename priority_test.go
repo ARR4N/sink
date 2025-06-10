@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestPriorityMutext(t *testing.T) {
+func TestPriorityMutex(t *testing.T) {
 	ctx := context.Background()
 
 	var i int
